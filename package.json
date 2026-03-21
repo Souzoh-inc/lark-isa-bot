@@ -1,0 +1,13 @@
+{
+    "name": "lark-isa-bot",
+    "version": "1.0.0",
+    "description": "入管庁情報自動回答Larkボット",
+    "scripts": {
+          "dev": "vercel dev",
+          "deploy": "vercel --prod"
+    },
+    "dependencies": {
+          "@anthropic-ai/sdk": "^0.52.0",
+          "node-fetch": "^3.3.2"
+    }
+}
