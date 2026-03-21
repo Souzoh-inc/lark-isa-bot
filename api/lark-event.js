@@ -19,6 +19,7 @@ async function getLarkAccessToken() {
     }
   );
   const data = await res.json();
+  console.log("Token response code:", data.code);
   return data.tenant_access_token;
 }
 
@@ -32,7 +33,9 @@ async function sendLarkReply(chatId, content, msgType = "interactive") {
       body: JSON.stringify({ receive_id: chatId, msg_type: msgType, content: JSON.stringify(content) }),
     }
   );
-  return res.json();
+  const data = await res.json();
+  console.log("Send reply response code:", data.code);
+  return data;
 }
 
 async function fetchISAPage(url) {
@@ -63,7 +66,7 @@ async function gatherISAContext() {
   const results = await Promise.all(
     pages.map(async (p) => {
       const text = await fetchISAPage(p.url);
-      return `\n--- ${p.label} (${p.url}) ---\n${text}`;
+      return `\n---- ${p.label} (${p.url}) ----\n${text}`;
     })
   );
   return results.join("\n");
@@ -75,22 +78,16 @@ async function generateAnswer(question, isaContext) {
 
 以下のルールに従ってください：
 1. 入管庁の公式サイトから取得した情報をもとに回答する
-2. 入管の堅い文言をそのまま使わず、登録支援機関の経営者・実務担当者がパッと理解できる平易な日本語で説明する
+2. 入管の堅い文章をそのまま使わず、登録支援機関の経営者・実務担当者がパッと理解できる平易な日本語で説明する
 3. 回答は以下の構造で整理する：
-   - まず質問に対する端的な回答（1〜2文）
-   - 必要に応じて「やるべきこと」「気をつけること」を整理
-   - 該当する公式ページのURLを末尾に添える
+  - まず質問に対する端的な回答（1〜2文）
+  - 必要に応じて「やるべきこと」「気をつけること」を整理
+  - 該当する公式ページのURLを末尾に添える
 4. 情報が見つからない場合は正直に「現時点の公式サイトには該当情報が見つかりませんでした」と回答する
 5. 回答は簡潔に（Larkで読みやすい分量で）
 
-## 既知の重要な法改正情報
-
-【2027年施行予定: 登録支援機関の要件厳格化】
-- 支援担当者1名あたりの上限: 特定技能外国人50名まで、所属機関（受入企業）10社まで
-- 支援責任者: 事務所ごとに常勤の役職員から1名以上選任（過去3年以内に法務大臣指定の講習修了者）
-- 支援担当者: 常勤であることが必須に
-
-【2025年4月1日施行済: 省令改正】
+## 既知の重要な法令改正情報
+[2025年4月1日施行済：省令改正]
 - 地域共生施策との連携（協力確認書の提出義務）
 - 定期届出の頻度変更（四半期ごと→年1回）`;
 
@@ -113,7 +110,7 @@ function buildCardMessage(question, answer) {
       { tag: "hr" },
       { tag: "markdown", content: answer },
       { tag: "hr" },
-      { tag: "markdown", content: "📎 [入管庁公式サイト](https://www.moj.go.jp/isa/index.html) | ※AI回答のため、重要な判断は必ず原文をご確認ください" },
+      { tag: "markdown", content: "🔗 [入管庁公式サイト](https://www.moj.go.jp/isa/index.html) ｜ ※AI回答のため、重要な判断は必ず原文をご確認ください" },
     ],
   };
 }
@@ -121,44 +118,92 @@ function buildCardMessage(question, answer) {
 const processedEvents = new Set();
 
 export default async function handler(req, res) {
+  console.log("=== Request received ===", req.method);
+
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
   const body = req.body;
-  if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
+  console.log("Body keys:", Object.keys(body || {}));
+  console.log("Body type:", body?.type, "Header event_type:", body?.header?.event_type);
+
+  if (body.type === "url_verification") {
+    console.log("URL verification challenge");
+    return res.status(200).json({ challenge: body.challenge });
+  }
+
   if (body.header && body.header.event_type === "im.message.receive_v1") {
     const eventId = body.header.event_id;
-    if (processedEvents.has(eventId)) return res.status(200).json({ ok: true });
+    console.log("Event ID:", eventId);
+
+    if (processedEvents.has(eventId)) {
+      console.log("Duplicate event, skipping");
+      return res.status(200).json({ ok: true });
+    }
     processedEvents.add(eventId);
     if (processedEvents.size > 1000) { processedEvents.delete(processedEvents.values().next().value); }
+
     const event = body.event;
     const message = event.message;
     const chatId = message.chat_id;
-    if (message.message_type !== "text") return res.status(200).json({ ok: true });
+    console.log("Chat ID:", chatId, "Chat type:", message.chat_type, "Msg type:", message.message_type);
+
+    if (message.message_type !== "text") {
+      console.log("Not text message, skipping");
+      return res.status(200).json({ ok: true });
+    }
+
     let msgContent;
-    try { msgContent = JSON.parse(message.content); } catch { return res.status(200).json({ ok: true }); }
+    try { msgContent = JSON.parse(message.content); } catch {
+      console.log("Failed to parse message content:", message.content);
+      return res.status(200).json({ ok: true });
+    }
+
     const text = msgContent.text || "";
     const mentions = event.message.mentions || [];
+    console.log("Text:", text, "Mentions count:", mentions.length);
+
     const isBotMentioned = mentions.some((m) => m.name === LARK_BOT_NAME);
     const isChatP2p = message.chat_type === "p2p";
-    if (!isBotMentioned && !isChatP2p) return res.status(200).json({ ok: true });
+    console.log("Bot mentioned:", isBotMentioned, "Is P2P:", isChatP2p, "LARK_BOT_NAME:", LARK_BOT_NAME);
+
+    if (!isBotMentioned && !isChatP2p) {
+      console.log("Not mentioned and not P2P, skipping");
+      return res.status(200).json({ ok: true });
+    }
+
     let question = text;
     for (const m of mentions) { question = question.replace(m.key, "").trim(); }
-    if (!question) return res.status(200).json({ ok: true });
-    res.status(200).json({ ok: true });
+    if (!question) {
+      console.log("Empty question after removing mentions");
+      return res.status(200).json({ ok: true });
+    }
+
+    console.log("Processing question:", question);
+
     try {
+      console.log("Gathering ISA context...");
       const isaContext = await gatherISAContext();
+      console.log("ISA context gathered, length:", isaContext.length);
+      console.log("Generating answer...");
       const answer = await generateAnswer(question, isaContext);
+      console.log("Answer generated, length:", answer.length);
       const card = buildCardMessage(question, answer);
-      await sendLarkReply(chatId, card);
+      console.log("Sending reply...");
+      const replyResult = await sendLarkReply(chatId, card);
+      console.log("Reply sent successfully");
+      return res.status(200).json({ ok: true });
     } catch (err) {
-      console.error("Error:", err);
+      console.error("Error processing message:", err.message, err.stack);
       try {
         await sendLarkReply(chatId, {
-          header: { title: { tag: "plain_text", content: "⚠️ エラー" }, template: "red" },
+          header: { title: { tag: "plain_text", content: "⚠ エラー" }, template: "red" },
           elements: [{ tag: "markdown", content: `回答の生成中にエラーが発生しました。\nエラー: ${err.message}` }],
         });
-      } catch {}
+      } catch (e2) { console.error("Failed to send error reply:", e2.message); }
+      return res.status(200).json({ ok: true });
     }
-    return;
   }
+
+  console.log("Unhandled request, body:", JSON.stringify(body).slice(0, 500));
   return res.status(200).json({ ok: true });
 }
