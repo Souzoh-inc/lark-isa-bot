@@ -10,7 +10,7 @@ const {
 } = process.env;
 
 async function getLarkAccessToken() {
-  const res = await fetch(
+  const res = await fetch
     "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal",
     {
       method: "POST",
@@ -94,7 +94,7 @@ async function generateAnswer(question, isaContext) {
   const userMessage = `## 入管庁公式サイトの最新情報\n${isaContext}\n\n## 質問\n${question}\n\n上記の公式情報をもとに、登録支援機関の実務に役立つ形で回答してください。`;
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 2000,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }],
