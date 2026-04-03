@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const LARK_WEBHOOK_URL = process.env.LARK_WEBHOOK_URL || "https://open.larksuite.com/open-apis/bot/v2/hook/9e9906a0-bd84-4d6f-93a2-c29ae4f503fc";
 const ISA_BASE = "https://www.moj.go.jp/isa/";
-const ISA_NEWS = "https://www.moj.go.jp/isa/newslist/index.html";
+const ISA_NEWS = "https://www.moj.go.jp/isa/publications/newslist/index.html";
 const anthropic = new Anthropic();
 
 function stripWelTags(html) {
