@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "functions": {
+    "api/daily-report.js": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/daily-report",
