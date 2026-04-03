@@ -29,7 +29,7 @@ function parseImportantNotices(rawHtml) {
 function parseNewsItems(rawHtml) {
   const html = stripWelTags(rawHtml);
   const items = [];
-  const liRe = /<li>\s*<div class="date">([\s\S]*?)<\/div>\s*<div class="cat"><span class="(cat\d+)">([\s\S]*?)<\/span><\/div>\s*<div class="txt"><a href="([^"]*)"[^>]*>([\s\S]*?)<\/a><\/div>\s*<\/li>/g;
+  const liRe = /<li>\s*<div class="date">([\s\S]*?)<\/div>\s*<div class="cat"><span class="(cat\d+)">([\s\S]*?)<\/span><\/div>\s*<div class="txt">\s*<a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>\s*<\/div>\s*<\/li>/g;
   let m;
   while ((m = liRe.exec(html)) !== null) {
     items.push({
